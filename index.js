@@ -2,14 +2,26 @@ require("dotenv").config();
 const express = require("express");
 const jwt = require("jsonwebtoken");
 const userModel = require("./db");
+const cors = require("cors");
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
+const { userSigninSchema, userSignupSchema } = require("./schema")
 const app = express();
 
 app.use(express.json());
+app.use(cors());
 
 app.post("/api/v1/signup", async (req, res) => {
     const { username, password, name } = req.body;
+
+    const validateSchema = userSignupSchema.safeParse({ username, password, name });
+
+    if (!validateSchema.success) {
+        return res.status(400).json({
+            message: "Invalid format",
+            errors: validateSchema.error.errors,
+        })
+    }
     try {
         const existingUser = await userModel.findOne({ username });
 
@@ -41,7 +53,15 @@ app.post("/api/v1/signup", async (req, res) => {
 
 app.post("/api/v1/signin", async (req, res) => {
     const { username, password } = req.body;
-    try {
+
+    const validateSchema = userSigninSchema.safeParse({ username, password });
+
+    if (!validateSchema.success) {
+        return res.status(400).json({
+            message: "Invalid format",
+            errors: validateSchema.error.errors,
+        })
+    } try {
         const existingUser = await userModel.findOne({ username });
 
         if (!existingUser) {
@@ -74,13 +94,31 @@ app.post("/api/v1/signin", async (req, res) => {
     }
 })
 
-app.put("/api/v1/updateinfo", (req, res) => {
+app.put("/api/v1/updateinfo", async (req, res) => {
     const { username, password, name } = req.body;
     try {
+        const existingUser = await userModel.findOne({ username });
 
+        if (!existingUser) {
+            return res.status(404).json({
+                message: "user does not exists...signup first"
+            })
+        };
+
+        if (name) existingUser.name = name;
+        if (password) {
+            existingUser.password = await bcrypt.hash(password, 10);
+        }
+
+        await existingUser.save();
+
+        return res.status(200).json({ message: "User updated successfully" });
     }
-    catch {
-
+    catch (error) {
+        return res.status(500).json({
+            message: "Internal server error",
+            error: error.message
+        })
     }
 })
 
