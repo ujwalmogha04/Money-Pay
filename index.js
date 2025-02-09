@@ -5,7 +5,8 @@ const userModel = require("./db");
 const cors = require("cors");
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
-const { userSigninSchema, userSignupSchema } = require("./schema")
+const { userSigninSchema, userSignupSchema } = require("./schema");
+const userMiddleware = require("./middleware");
 const app = express();
 
 app.use(express.json());
@@ -33,11 +34,15 @@ app.post("/api/v1/signup", async (req, res) => {
 
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        const user = await userModel.create({
+        const User = await userModel.create({
             username,
             password: hashedPassword,
             name
         })
+
+        const token = jwt.sign({ id: User._id, username: User.username }, process.env.JWT_SECRET, { expiresIn: "1h" })
+
+        res.setHeader("Authorization", `Bearer ${token}`);
 
         return res.status(201).json({
             message: "User created successfully",
@@ -80,6 +85,8 @@ app.post("/api/v1/signin", async (req, res) => {
 
         const token = jwt.sign({ id: existingUser._id, username: existingUser.username }, process.env.JWT_SECRET, { expiresIn: "1h" })
 
+        res.setHeader("Authorization", `Bearer ${token}`);
+
         return res.status(200).json({
             message: "you have signed up sucessfully",
             token
@@ -94,7 +101,7 @@ app.post("/api/v1/signin", async (req, res) => {
     }
 })
 
-app.put("/api/v1/updateinfo", async (req, res) => {
+app.put("/api/v1/updateinfo", userMiddleware ,  async (req, res) => {
     const { username, password, name } = req.body;
     try {
         const existingUser = await userModel.findOne({ username });
@@ -138,3 +145,7 @@ async function main() {
 
 main();
 
+//userMiddleware
+//token in headers in signin route
+//express routing
+//verification email feature
